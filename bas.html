@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Behavior Annotation System (BAS)</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        video {
+            width: 100%;
+            max-height: 480px;
+            background: black;
+        }
+
+        .section {
+            margin-top: 16px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            align-items: center; /* 垂直中央揃え */
+        }
+
+        /* file-controls: a bit more space between save and load buttons */
+        .file-controls {
+            gap: 16px;
+            align-items: center; /* 行内アイテムを中央揃え */
+        }
+
+        input {
+            font-size: 14px;
+        }
+
+        .timeline-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        /* すべてのボタン共通デザイン */
+        button,
+        .file-load-btn {
+            padding: 10px 18px !important;
+            font-size: 14px !important;
+            background: #f5f5f5;
+            border: 1px solid #aaa;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover,
+        .file-load-btn:hover {
+            background: #eaeaea;
+        }
+
+        /* 編集ボタン ｜ */
+        .edit-btn {
+            border: none;
+            background: transparent;
+            padding: 0 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .edit-btn:hover {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+
+        /* 行動ボタン（色＋行動名＋キー） */
+        .behavior-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 220px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: #fafafa;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 8px;
+            /* 追加：中で両端に色＋名前と編集ボタンを配置 */
+            justify-content: space-between;
+        }
+
+        .color-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+        }
+
+        .timeline-bar {
+            flex: 1;
+            height: 16px;
+            background: #eee;
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .timeline-interval {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            border-radius: 4px;
+            opacity: 0.75;
+        }
+
+        .timeline-now {
+            position: absolute;
+            width: 3px;
+            height: 100%;
+            background: red;
+            top: 0;
+            z-index: 999;
+        }
+
+        /* 記録中の行動ボタンを点滅させる */
+        @keyframes blinkLabelBg {
+            0% {
+                background-color: rgba(255, 235, 59, 0);
+            }
+
+            50% {
+                background-color: rgba(255, 235, 59, 0.9);
+            }
+
+            100% {
+                background-color: rgba(255, 235, 59, 0);
+            }
+        }
+
+        .active-label {
+            animation: blinkLabelBg 0.8s infinite;
+        }
+
+        /* 編集モーダル */
+        #editModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #editBox {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 320px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .note {
+            font-size: 12px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .lang-switch {
+            display: flex;
+            justify-content: flex-end;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .lang-switch button.active {
+            background: #333;
+            color: #fff;
+            border-color: #333;
+        }
+
+        .file-name {
+            font-size: 12px;
+            color: #555;
+            margin-left: 8px;
+            line-height: 1; /* ボタンと行を揃えるのに安定させる */
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        /* ラベル内のネイティブな file input の表示を隠して
+           カスタムのファイル名スパンだけを見せる */
+        .controls label {
+            position: relative;
+            display: inline-flex; /* label 内をフレックスにして中央揃え */
+            align-items: center;
+            gap: 8px;
+        }
+
+        .controls label input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="lang-switch">
+        <span id="langLabel">Language:</span>
+        <button id="btnLangJp" class="active">日本語</button>
+        <button id="btnLangEn">English</button>
+    </div>
+
+    <h1 id="titleText">Behavior Annotation System (BAS)</h1>
+
+    <!-- 動画エリア -->
+    <div class="section">
+        <strong id="videoSectionTitle">動画ファイル / Video</strong>
+        <div class="controls">
+            <label>
+                <button type="button" id="btnLoadVideo" class="file-load-btn">動画ファイルを選択</button>
+                <input type="file" id="videoFile" accept="video/*">
+                <span id="videoFileName" class="file-name"></span>
+            </label>
+        </div>
+        <video id="video" controls playsinline webkit-playsinline muted></video>
+        <div class="controls">
+            <button id="playBtn">▶ 再生</button>
+            <button id="pauseBtn">⏸ 一時停止</button>
+            <button id="stopBtn">⏹ 停止</button>
+
+            <!-- 再生速度 -->
+            <button id="speedDownBtn">－ 速度</button>
+            <button id="speedUpBtn">＋ 速度</button>
+            <span id="speedLabel">1.0x</span>
+
+            <span id="timeLabel" style="margin-left:auto;">00:00 / 00:00</span>
+        </div>
+    </div>
+
+    <!-- タイムライン ＋ 行動追加 -->
+    <div class="section">
+        <strong id="timelineSectionTitle">タイムライン / Timeline</strong>
+        <div id="timelineContainer" style="margin-top:8px;">
+            動画を読み込むと表示されます。
+        </div>
+
+        <div style="margin-top:16px;">
+            <strong id="behaviorAddTitle">行動の追加 / Add Behaviors</strong>
+            <div class="controls">
+                <input id="behaviorName" placeholder="行動名" />
+                <input id="behaviorKey" placeholder="キー" maxlength="1" style="width:60px" />
+                <button id="addBehaviorBtn">追加</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- 状態の保存 / 復元 -->
+    <div class="section">
+        <strong id="stateSectionTitle">保存 / 復元</strong>
+        <div class="controls file-controls">
+            <span id="stateLoadLabel">状態ファイル（タイムライン＋行動）の:</span>
+            <button id="saveStateBtn">保存</button>
+            <label>
+                <button type="button" class="file-load-btn" id="btnLoadState">読込</button>
+                <input type="file" id="loadStateInput" accept="application/json" />
+                <span id="loadStateFileName" class="file-name"></span>
+            </label>
+        </div>
+
+        <!-- タイムラインのみ -->
+        <div class="controls file-controls">
+            <span id="timelineLoadLabel">タイムライン:</span>
+            <button id="saveTimelineBtn">保存</button>
+            <label>
+                <button type="button" class="file-load-btn" id="btnLoadTimeline">読込</button>
+                <input type="file" id="loadTimelineInput" accept="application/json" />
+                <span id="loadTimelineFileName" class="file-name"></span>
+            </label>
+        </div>
+
+        <!-- 行動テンプレート -->
+        <div class="controls file-controls">
+            <span id="templateLoadLabel">行動テンプレート:</span>
+            <button id="saveBehaviorsBtn">保存</button>
+            <label>
+                <button type="button" class="file-load-btn" id="btnLoadBehaviors">読込</button>
+                <input type="file" id="loadBehaviorsInput" accept="application/json" />
+                <span id="loadBehaviorsFileName" class="file-name"></span>
+            </label>
+        </div>
+
+        <div class="note" id="stateNoteText">
+            ※ 動画ファイルそのものは保存されません。<br>
+            再編集するときは、先に同じ動画ファイルを選択してから、保存した JSON ファイルを読み込んでください。
+        </div>
+        <div class="note" id="stateDetailNoteText"></div>
+        <div class="note" id="videoInfoNote"></div>
+    </div>
+
+
+    <!-- 行動テンプレート
+    <div class="section">
+        <strong id="templateSectionTitle">行動テンプレート / Behavior Templates</strong>
+        <div class="controls">
+            <button id="saveBehaviorsBtn">行動定義を保存（テンプレート）</button>
+            <label>
+                <span id="templateLoadLabel">行動テンプレート読込:</span>
+                <input type="file" id="loadBehaviorsInput" accept="application/json" />
+            </label>
+        </div>
+        <div class="note" id="templateNoteText">
+            ※ 行動テンプレート読込では、行動だけを読み込み、区間データはリセットされます。<br>
+            ※ 別の動画でも同じキー配置・行動名・色を再利用できます。
+        </div>
+    </div> -->
+
+    <!-- CSV 書き出し -->
+    <div class="section">
+        <strong id="csvSectionTitle">CSV書き出し / Export CSV</strong>
+        <div class="controls">
+            <button id="downloadCsvBtn">CSV ダウンロード</button>
+        </div>
+    </div>
+
+    <!-- 行動編集モーダル -->
+    <div id="editModal">
+        <div id="editBox">
+            <h3 id="editDialogTitle">行動の編集</h3>
+            <label>
+                <span id="editNameLabel">行動名：</span>
+                <input id="editName">
+            </label><br><br>
+            <label>
+                <span id="editKeyLabel">キー：</span>
+                <input id="editKey" maxlength="1" style="width:60px">
+            </label><br><br>
+            <label>
+                <span id="editColorLabel">色：</span>
+                <input type="color" id="editColor">
+            </label><br><br>
+            <button id="saveEditBtn">保存</button>
+            <button id="cancelEditBtn">キャンセル</button>
+        </div>
+    </div>
+
+    <script>
+        /* ============================
+           i18n
+        ============================ */
+        let currentLang = "jp";
+        const i18n = {
+            jp: {
+                title: "Behavior Annotation System (BAS)",
+                langLabel: "Language:",
+                videoSectionTitle: "動画ファイル / Video",
+                timelineSectionTitle: "タイムライン / Timeline",
+                behaviorAddTitle: "行動の追加 / Add Behaviors",
+                csvSectionTitle: "CSV書き出し / Export CSV",
+                stateSectionTitle: "保存 / 復元",
+                stateLoadLabel: "状態ファイル（タイムライン＋行動）の:",
+                stateNote: "※ 動画ファイルそのものは保存されません。<br>再編集するときは、先に同じ動画ファイルを選択してから、保存した JSON ファイルを読み込んでください。",
+                stateDetailNote: "※「状態を保存」は行動定義とタイムライン（区間データ）の両方を保存します。<br>※ タイムラインだけ保存したい場合は「タイムラインのみ保存」、行動だけ保存したい場合は「行動テンプレートのみ保存」を使用してください。",
+                templateSectionTitle: "行動テンプレート / Behavior Templates",
+                templateLoadLabel: "行動テンプレート:",
+                templateNote: "※ 行動テンプレート読込では、行動だけを読み込み、区間データはリセットされます。<br>※ 別の動画でも同じキー配置・行動名・色を再利用できます。",
+                btnPlay: "▶ 再生",
+                btnPause: "⏸ 一時停止",
+                btnStop: "⏹ 停止",
+                btnSpeedDown: "－ 速度",
+                btnSpeedUp: "＋ 速度",
+                behaviorNamePlaceholder: "行動名",
+                behaviorKeyPlaceholder: "キー",
+                btnAddBehavior: "追加",
+                csvDownload: "CSV ダウンロード",
+                btnSaveState: "保存",
+                btnSaveBehaviors: "保存",
+                btnSaveTimeline: "保存",
+                timelineLoadLabel: "タイムライン:",
+                editDialogTitle: "行動の編集",
+                editNameLabel: "行動名：",
+                editKeyLabel: "キー：",
+                editColorLabel: "色：",
+                timelineEmpty: "動画を読み込むと表示されます。",
+                msgInputNameKey: "行動名とキーを入力してください。",
+                msgKeyUsed: "このキーは既に使われています。",
+                msgNoBehaviorsToSave: "保存できる行動定義がありません。",
+                msgNoIntervalsToExport: "書き出せる区間がありません。",
+                msgStateFileUnsupported: "このファイルは対応していません。",
+                msgStateLoaded: "状態を読み込みました。必要に応じて同じ動画ファイルを選択してから再生してください。",
+                msgStateLoadFailed: "状態ファイルの読み込みに失敗しました。JSON形式を確認してください。",
+                msgTemplateLoadedKeepTimeline: "行動テンプレートを読み込みました（既存のタイムラインは保持されています）。",
+                msgTemplateLoadFailed: "行動テンプレートの読み込みに失敗しました。JSON形式を確認してください。",
+                msgBehaviorsFieldMissing: "行動定義が見つかりません（behaviors フィールドがありません）。",
+                msgTemplateLoaded: "行動テンプレートを読み込みました。動画を選択してから記録を開始してください。",
+                msgNoTimelineToSave: "保存できるタイムライン（区間データ）がありません。",
+                msgTimelineFileUnsupported: "このタイムラインファイルは対応していません。",
+                msgTimelineLoaded: "タイムラインを読み込みました。",
+                msgTimelineLoadFailed: "タイムラインファイルの読み込みに失敗しました。JSON形式を確認してください。",
+                msgTimelineKeyWarning: "タイムライン内に現在の行動定義に存在しないキーがあります: "
+                , btnLoad: "読込"
+            },
+            en: {
+                title: "Behavior Annotation System (BAS)",
+                langLabel: "Language:",
+                videoSectionTitle: "Video File",
+                timelineSectionTitle: "Timeline",
+                behaviorAddTitle: "Add Behaviors",
+                csvSectionTitle: "Export CSV",
+                stateSectionTitle: "Save / Load",
+                stateLoadLabel: "State file (timeline + behaviors):",
+                stateNote: "※ The video file itself is NOT saved.<br>When resuming work, first select the same video file, then load the saved JSON state.",
+                stateDetailNote: "※ \"Save state\" stores both behavior definitions and the full timeline (interval data).<br>※ To save only the timeline, use \"Save timeline only\"; to save only behavior definitions, use \"Save behavior template only\".",
+                templateSectionTitle: "Behavior Templates",
+                templateLoadLabel: "Behavior template:",
+                templateNote: "※ Loading a behavior template only changes behavior definitions; interval data can be reset as needed.<br>※ You can reuse the same behavior/key/color layout across different videos.",
+                btnPlay: "▶ Play",
+                btnPause: "⏸ Pause",
+                btnStop: "⏹ Stop",
+                btnSpeedDown: "－ Speed",
+                btnSpeedUp: "＋ Speed",
+                behaviorNamePlaceholder: "Behavior name",
+                behaviorKeyPlaceholder: "Key",
+                btnAddBehavior: "Add",
+                csvDownload: "Download CSV",
+                btnSaveState: "Save",
+                btnSaveBehaviors: "Save",
+                btnSaveTimeline: "Save",
+                timelineLoadLabel: "Timeline:",
+                editDialogTitle: "Edit Behavior",
+                editNameLabel: "Name:",
+                editKeyLabel: "Key:",
+                editColorLabel: "Color:",
+                timelineEmpty: "Timeline appears after loading a video.",
+                msgInputNameKey: "Please enter both behavior name and key.",
+                msgKeyUsed: "This key is already in use.",
+                msgNoBehaviorsToSave: "No behavior definitions to save.",
+                msgNoIntervalsToExport: "No finished intervals to export.",
+                msgStateFileUnsupported: "This file format is not supported.",
+                msgStateLoaded: "State has been loaded. Please select the same video file if necessary, then play.",
+                msgStateLoadFailed: "Failed to load the state file. Please check JSON format.",
+                msgTemplateLoadedKeepTimeline: "Behavior template loaded. Existing timeline was kept.",
+                msgTemplateLoadFailed: "Failed to load behavior template. Please check JSON format.",
+                msgBehaviorsFieldMissing: "No behavior definitions found (missing 'behaviors' field).",
+                msgTemplateLoaded: "Behavior template loaded. Select a video file and start coding.",
+                msgNoTimelineToSave: "No timeline (interval data) to save.",
+                msgTimelineFileUnsupported: "This timeline file format is not supported.",
+                msgTimelineLoaded: "Timeline has been loaded.",
+                msgTimelineLoadFailed: "Failed to load timeline file. Please check JSON format.",
+                msgTimelineKeyWarning: "Some keys in the timeline do not exist in the current behavior definitions: "
+                , btnLoad: "Load"
+            }
+        };
+        function t(k) { return i18n[currentLang][k] || k; }
+
+        function applyLanguage() {
+            document.getElementById("titleText").textContent = t("title");
+            document.getElementById("langLabel").textContent = t("langLabel");
+            document.getElementById("videoSectionTitle").textContent = t("videoSectionTitle");
+            document.getElementById("timelineSectionTitle").textContent = t("timelineSectionTitle");
+            document.getElementById("behaviorAddTitle").textContent = t("behaviorAddTitle");
+            document.getElementById("csvSectionTitle").textContent = t("csvSectionTitle");
+            document.getElementById("stateSectionTitle").textContent = t("stateSectionTitle");
+            document.getElementById("stateLoadLabel").textContent = t("stateLoadLabel");
+            document.getElementById("templateLoadLabel").textContent = t("templateLoadLabel");
+            document.getElementById("stateNoteText").innerHTML = t("stateNote");
+            document.getElementById("stateDetailNoteText").innerHTML = t("stateDetailNote");
+            document.getElementById("timelineLoadLabel").textContent = t("timelineLoadLabel");
+
+            // file load buttons
+            try { btnLoadState.textContent = t("btnLoad"); } catch (e) { }
+            try { btnLoadTimeline.textContent = t("btnLoad"); } catch (e) { }
+            try { btnLoadBehaviors.textContent = t("btnLoad"); } catch (e) { }
+
+            playBtn.textContent = t("btnPlay");
+            pauseBtn.textContent = t("btnPause");
+            stopBtn.textContent = t("btnStop");
+            speedDownBtn.textContent = t("btnSpeedDown");
+            speedUpBtn.textContent = t("btnSpeedUp");
+            addBehaviorBtn.textContent = t("btnAddBehavior");
+            downloadCsvBtn.textContent = t("csvDownload");
+            saveStateBtn.textContent = t("btnSaveState");
+            saveBehaviorsBtn.textContent = t("btnSaveBehaviors");
+            saveTimelineBtn.textContent = t("btnSaveTimeline");
+
+            document.getElementById("editDialogTitle").textContent = t("editDialogTitle");
+            document.getElementById("editNameLabel").textContent = t("editNameLabel");
+            document.getElementById("editKeyLabel").textContent = t("editKeyLabel");
+            document.getElementById("editColorLabel").textContent = t("editColorLabel");
+
+            behaviorNameInput.placeholder = t("behaviorNamePlaceholder");
+            behaviorKeyInput.placeholder = t("behaviorKeyPlaceholder");
+
+            const d = video.duration;
+            if (!isFinite(d) || d <= 0) {
+                timelineContainer.textContent = t("timelineEmpty");
+            }
+        }
+
+        /* 言語ボタン */
+        const btnLangJp = document.getElementById("btnLangJp");
+        const btnLangEn = document.getElementById("btnLangEn");
+        btnLangJp.addEventListener("click", () => {
+            currentLang = "jp";
+            btnLangJp.classList.add("active");
+            btnLangEn.classList.remove("active");
+            applyLanguage();
+        });
+        btnLangEn.addEventListener("click", () => {
+            currentLang = "en";
+            btnLangEn.classList.add("active");
+            btnLangJp.classList.remove("active");
+            applyLanguage();
+        });
+
+        /* ============================
+           要素参照
+        ============================ */
+
+        const btnLoadVideo = document.getElementById("btnLoadVideo");
+        const videoFileNameSpan = document.getElementById("videoFileName");
+
+        const video = document.getElementById("video");
+        const videoFileInput = document.getElementById("videoFile");
+        const playBtn = document.getElementById("playBtn");
+        const pauseBtn = document.getElementById("pauseBtn");
+        const stopBtn = document.getElementById("stopBtn");
+        const timeLabel = document.getElementById("timeLabel");
+        const speedDownBtn = document.getElementById("speedDownBtn");
+        const speedUpBtn = document.getElementById("speedUpBtn");
+        const speedLabel = document.getElementById("speedLabel");
+
+        const timelineContainer = document.getElementById("timelineContainer");
+        const behaviorNameInput = document.getElementById("behaviorName");
+        const behaviorKeyInput = document.getElementById("behaviorKey");
+        const addBehaviorBtn = document.getElementById("addBehaviorBtn");
+        const downloadCsvBtn = document.getElementById("downloadCsvBtn");
+
+        const saveStateBtn = document.getElementById("saveStateBtn");
+        const loadStateInput = document.getElementById("loadStateInput");
+        const btnLoadState = document.getElementById("btnLoadState");
+        const saveTimelineBtn = document.getElementById("saveTimelineBtn");
+        const loadTimelineInput = document.getElementById("loadTimelineInput");
+        const btnLoadTimeline = document.getElementById("btnLoadTimeline");
+
+        const saveBehaviorsBtn = document.getElementById("saveBehaviorsBtn");
+        const loadBehaviorsInput = document.getElementById("loadBehaviorsInput");
+        const btnLoadBehaviors = document.getElementById("btnLoadBehaviors");
+        const videoInfoNote = document.getElementById("videoInfoNote");
+
+        const editModal = document.getElementById("editModal");
+        const editName = document.getElementById("editName");
+        const editKey = document.getElementById("editKey");
+        const editColor = document.getElementById("editColor");
+        const saveEditBtn = document.getElementById("saveEditBtn");
+        const cancelEditBtn = document.getElementById("cancelEditBtn");
+
+        /* ============================
+           データ
+        ============================ */
+        let behaviors = []; // {name,key,color,openIntervalIndex}
+        let intervals = []; // {key,behaviorName,start,end,duration,color}
+        const autoColors = ["#e53935", "#43a047", "#1e88e5", "#fb8c00", "#8e24aa", "#00897b", "#6d4c41", "#3949ab"];
+        let colorIndex = 0;
+        let currentVideoFileName = null;
+        let dragSrcIndex = null; // D&D用
+
+        /* ============================
+           動画読み込み
+        ============================ */
+
+        videoFileInput.addEventListener("change", e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            currentVideoFileName = file.name;
+            videoInfoNote.textContent = currentVideoFileName
+                ? `Video file: ${currentVideoFileName}` : "";
+
+            video.src = URL.createObjectURL(file);
+            video.load();
+
+            intervals = [];
+            behaviors.forEach(b => b.openIntervalIndex = null);
+            updateTimeline();
+        });
+
+
+        btnLoadVideo.addEventListener("click", () => videoFileInput.click());
+
+        videoFileInput.addEventListener("change", e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            videoFileNameSpan.textContent = file.name;
+        });
+
+
+
+        /* ファイル読み込みボタンを押したらネイティブの file input を開く */
+        try { btnLoadState.addEventListener('click', () => loadStateInput.click()); } catch (e) { }
+        try { btnLoadTimeline.addEventListener('click', () => loadTimelineInput.click()); } catch (e) { }
+        try { btnLoadBehaviors.addEventListener('click', () => loadBehaviorsInput.click()); } catch (e) { }
+
+        playBtn.addEventListener("click", () => video.play());
+        pauseBtn.addEventListener("click", () => video.pause());
+        stopBtn.addEventListener("click", () => { video.pause(); video.currentTime = 0; });
+
+        video.addEventListener("timeupdate", () => {
+            const tNow = video.currentTime, d = video.duration;
+            const fmt = x => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+            timeLabel.textContent = `${fmt(tNow)} / ${fmt(d)}`;
+        });
+
+        /* ============================
+           再生速度
+        ============================ */
+        function updateSpeedLabel() {
+            speedLabel.textContent = video.playbackRate.toFixed(1) + "x";
+        }
+        speedDownBtn.addEventListener("click", () => {
+            video.playbackRate = Math.max(0.1, video.playbackRate - 0.1);
+            updateSpeedLabel();
+        });
+        speedUpBtn.addEventListener("click", () => {
+            video.playbackRate = Math.min(5.0, video.playbackRate + 0.1);
+            updateSpeedLabel();
+        });
+
+        /* ============================
+           行動トグル（キー／ボタン共通）
+        ============================ */
+        function toggleBehaviorByIndex(idx) {
+            const b = behaviors[idx];
+            if (!b) return;
+            if (video.paused) return; // 再生中のみ記録
+
+            const tNow = video.currentTime;
+            if (b.openIntervalIndex == null) {
+                const intervalIndex = intervals.length;
+                intervals.push({
+                    key: b.key,
+                    behaviorName: b.name,
+                    start: tNow,
+                    end: null,
+                    duration: null,
+                    color: b.color
+                });
+                b.openIntervalIndex = intervalIndex;
+            } else {
+                const iv = intervals[b.openIntervalIndex];
+                iv.end = tNow;
+                iv.duration = tNow - iv.start;
+                b.openIntervalIndex = null;
+            }
+            updateTimeline();
+        }
+
+        /* ============================
+           タイムライン描画＋D&D並べ替え
+        ============================ */
+        function updateTimeline() {
+            const d = video.duration;
+            if (!isFinite(d) || d <= 0) {
+                timelineContainer.textContent = t("timelineEmpty");
+                return;
+            }
+            timelineContainer.innerHTML = "";
+
+            behaviors.forEach((b, idx) => {
+                const row = document.createElement("div");
+                row.className = "timeline-row";
+                row.dataset.index = idx;
+                row.draggable = true;
+
+                // --- ドラッグ＆ドロップで並べ替え ---
+                row.addEventListener("dragstart", e => {
+                    dragSrcIndex = idx;
+                    e.dataTransfer.effectAllowed = "move";
+                });
+                row.addEventListener("dragover", e => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                });
+                row.addEventListener("drop", e => {
+                    e.preventDefault();
+                    const from = dragSrcIndex;
+                    const to = idx;
+                    if (from == null || from === to) return;
+                    const moved = behaviors.splice(from, 1)[0];
+                    behaviors.splice(to, 0, moved);
+                    dragSrcIndex = null;
+                    updateTimeline();
+                });
+
+                // --- 行動ボタン（色＋名前＋キー＋編集「｜」をひとまとめ） ---
+                const behaviorBtn = document.createElement("button");
+                behaviorBtn.className = "behavior-btn";
+                if (b.openIntervalIndex != null) {
+                    behaviorBtn.classList.add("active-label"); // 記録中は点滅
+                }
+
+                // 左側：色
+                const cbox = document.createElement("div");
+                cbox.className = "color-box";
+                cbox.style.background = b.color;
+
+                // 中央：テキスト（行動名(key)）
+                const txt = document.createElement("span");
+                txt.textContent = `${b.name} (${b.key})`;
+
+                // 右側：編集ボタン「｜」
+                const editButton = document.createElement("button");
+                editButton.className = "edit-btn";
+                editButton.textContent = "|";
+                editButton.addEventListener("click", e => {
+                    e.stopPropagation();        // 行動トグルは発火させない
+                    openEditDialog(idx);        // 色・名前・キー編集
+                });
+
+                behaviorBtn.appendChild(cbox);
+                behaviorBtn.appendChild(txt);
+                behaviorBtn.appendChild(editButton);
+
+                // 行動ボタン全体をクリック → Start/Stop トグル
+                behaviorBtn.addEventListener("click", e => {
+                    e.preventDefault();
+                    toggleBehaviorByIndex(idx);
+                });
+
+                // --- タイムラインバー ---
+                const bar = document.createElement("div");
+                bar.className = "timeline-bar";
+                bar.addEventListener("click", e => {
+                    const rect = bar.getBoundingClientRect();
+                    const ratio = (e.clientX - rect.left) / rect.width;
+                    if (isFinite(video.duration) && video.duration > 0) {
+                        video.currentTime = ratio * video.duration;
+                    }
+                });
+
+                const now = document.createElement("div");
+                now.className = "timeline-now";
+                bar.appendChild(now);
+
+                intervals
+                    .filter(iv => iv.key === b.key && iv.end != null)
+                    .forEach(iv => {
+                        const seg = document.createElement("div");
+                        seg.className = "timeline-interval";
+                        seg.style.background = iv.color;
+                        seg.style.left = `${iv.start / d * 100}%`;
+                        seg.style.width = `${iv.duration / d * 100}%`;
+                        bar.appendChild(seg);
+                    });
+
+                // ★ 並び順をここで指定：
+                //   [ 行動ボタン ] [ タイムラインバー ]
+                row.appendChild(behaviorBtn);
+                row.appendChild(bar);
+                timelineContainer.appendChild(row);
+            });
+        }
+
+
+        /* 現在位置の赤線を更新 */
+        setInterval(() => {
+            const d = video.duration;
+            if (!isFinite(d) || d <= 0) return;
+            const pos = video.currentTime / d * 100;
+            document.querySelectorAll(".timeline-now").forEach(n => {
+                n.style.left = `${pos}%`;
+            });
+        }, 100);
+
+        /* ============================
+           行動追加
+        ============================ */
+        addBehaviorBtn.addEventListener("click", () => {
+            const name = behaviorNameInput.value.trim();
+            const key = behaviorKeyInput.value.trim().toLowerCase();
+            if (!name || !key) {
+                alert(t("msgInputNameKey"));
+                return;
+            }
+            if (behaviors.some(b => b.key === key)) {
+                alert(t("msgKeyUsed"));
+                return;
+            }
+            const color = autoColors[colorIndex++ % autoColors.length];
+            behaviors.push({ name, key, color, openIntervalIndex: null });
+            behaviorNameInput.value = "";
+            behaviorKeyInput.value = "";
+            updateTimeline();
+        });
+
+        /* ============================
+           行動編集モーダル
+        ============================ */
+        let editingIndex = null;
+        function openEditDialog(i) {
+            editingIndex = i;
+            const b = behaviors[i];
+            editName.value = b.name;
+            editKey.value = b.key;
+            editColor.value = b.color;
+            editModal.style.display = "flex";
+        }
+        cancelEditBtn.addEventListener("click", () => editModal.style.display = "none");
+        saveEditBtn.addEventListener("click", () => {
+            const name = editName.value.trim();
+            const key = editKey.value.trim().toLowerCase();
+            const color = editColor.value;
+            if (!name || !key) {
+                alert(t("msgInputNameKey"));
+                return;
+            }
+            if (behaviors.some((b, i) => i !== editingIndex && b.key === key)) {
+                alert(t("msgKeyUsed"));
+                return;
+            }
+            const b = behaviors[editingIndex];
+            const oldKey = b.key;
+            b.name = name; b.key = key; b.color = color;
+
+            intervals.forEach(iv => {
+                if (iv.key === oldKey) {
+                    iv.key = key;
+                    iv.behaviorName = name;
+                    iv.color = color;
+                }
+            });
+
+            editModal.style.display = "none";
+            updateTimeline();
+        });
+
+        /* ============================
+           キー入力で Start/Stop
+        ============================ */
+        document.addEventListener("keydown", e => {
+            const tag = e.target.tagName.toLowerCase();
+            if (tag === "input" || tag === "textarea") return;
+            const key = e.key.toLowerCase();
+            const idx = behaviors.findIndex(x => x.key === key);
+            if (idx < 0) return;
+            toggleBehaviorByIndex(idx);
+        });
+
+        /* ============================
+           CSV 出力
+        ============================ */
+        downloadCsvBtn.addEventListener("click", () => {
+            const done = intervals.filter(iv => iv.end != null);
+            if (done.length === 0) {
+                alert(t("msgNoIntervalsToExport"));
+                return;
+            }
+            let csv = "behavior,key,start_sec,end_sec,duration_sec\n";
+            done.forEach(iv => {
+                csv += `${iv.behaviorName},${iv.key},${iv.start.toFixed(3)},${iv.end.toFixed(3)},${iv.duration.toFixed(3)}\n`;
+            });
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = "behavior_intervals.csv"; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        /* ============================
+           状態保存／読込
+        ============================ */
+        saveStateBtn.addEventListener("click", () => {
+            const state = {
+                type: "full_state", version: 1,
+                videoName: currentVideoFileName,
+                behaviors: behaviors,
+                intervals: intervals
+            };
+            const json = JSON.stringify(state, null, 2);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = "behavior_state.json"; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        loadStateInput.addEventListener("change", e => {
+            // e.target.value = ""; // 同じファイルを連続で選択できるようにリセット
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const obj = JSON.parse(ev.target.result);
+                    if (!obj || !Array.isArray(obj.behaviors) || !Array.isArray(obj.intervals)) {
+                        alert(t("msgStateFileUnsupported"));
+                        return;
+                    }
+                    behaviors = obj.behaviors;
+                    intervals = obj.intervals;
+                    behaviors.forEach(b => {
+                        if (typeof b.openIntervalIndex !== "number") b.openIntervalIndex = null;
+                    });
+                    currentVideoFileName = obj.videoName || null;
+                    videoInfoNote.textContent = currentVideoFileName
+                        ? `Video file (saved with state): ${currentVideoFileName}` : "";
+                    updateTimeline();
+                    alert(t("msgStateLoaded"));
+                } catch (err) {
+                    console.error(err);
+                    alert(t("msgStateLoadFailed"));
+                } finally {
+                    // 同じファイルを再選択しても change が動くように input をクリア
+                    try { document.getElementById('loadStateFileName').textContent = file ? file.name : ''; } catch (e) { }
+                    try { loadStateInput.value = ''; } catch (e) { }
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        /* ============================
+           行動テンプレート保存／読込
+        ============================ */
+        saveBehaviorsBtn.addEventListener("click", () => {
+            if (behaviors.length === 0) {
+                alert(t("msgNoBehaviorsToSave")); return;
+            }
+            const data = { type: "behaviors_template", version: 1, behaviors: behaviors };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = "behavior_template.json"; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        loadBehaviorsInput.addEventListener("change", e => {
+            // e.target.value = ""; // 同じファイルを連続で選択できるようにリセット
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const obj = JSON.parse(ev.target.result);
+                    if (Array.isArray(obj.behaviors)) {
+                        const newBehaviors = obj.behaviors;
+                        newBehaviors.forEach(b => {
+                            if (typeof b.openIntervalIndex !== "number") b.openIntervalIndex = null;
+                        });
+                        intervals.forEach(iv => {
+                            const matched = newBehaviors.find(b => b.key === iv.key);
+                            if (matched) {
+                                iv.behaviorName = matched.name;
+                                iv.color = matched.color;
+                            }
+                        });
+                        behaviors = newBehaviors;
+                        colorIndex = behaviors.length;
+                        updateTimeline();
+                        alert(t("msgTemplateLoadedKeepTimeline"));
+                    } else {
+                        alert(t("msgBehaviorsFieldMissing"));
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert(t("msgTemplateLoadFailed"));
+                } finally {
+                    try { document.getElementById('loadBehaviorsFileName').textContent = file ? file.name : ''; } catch (e) { }
+                    try { loadBehaviorsInput.value = ''; } catch (e) { }
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        /* ============================
+           タイムラインのみ保存／読込
+        ============================ */
+        saveTimelineBtn.addEventListener("click", () => {
+            if (intervals.length === 0) {
+                alert(t("msgNoTimelineToSave")); return;
+            }
+            const data = {
+                type: "timeline_only", version: 1,
+                videoName: currentVideoFileName,
+                intervals: intervals
+            };
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = "timeline.json"; a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        loadTimelineInput.addEventListener("change", e => {
+            // e.target.value = ""; // 同じファイルを連続で選択できるようにリセット
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const obj = JSON.parse(ev.target.result);
+                    if (!obj || !Array.isArray(obj.intervals)) {
+                        alert(t("msgTimelineFileUnsupported")); return;
+                    }
+                    intervals = obj.intervals;
+                    behaviors.forEach(b => b.openIntervalIndex = null);
+
+                    const definedKeys = new Set(behaviors.map(b => b.key));
+                    const keysInTimeline = Array.from(new Set(intervals.map(iv => iv.key)));
+                    const missing = keysInTimeline.filter(k => !definedKeys.has(k));
+                    if (missing.length > 0) {
+                        alert(t("msgTimelineKeyWarning") + missing.join(", "));
+                    }
+                    updateTimeline();
+                    alert(t("msgTimelineLoaded"));
+                } catch (err) {
+                    console.error(err);
+                    alert(t("msgTimelineLoadFailed"));
+                } finally {
+                    try { document.getElementById('loadTimelineFileName').textContent = file ? file.name : ''; } catch (e) { }
+                    try { loadTimelineInput.value = ''; } catch (e) { }
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        /* 初期 */
+        applyLanguage();
+        updateSpeedLabel();
+    </script>
+</body>
+
+</html>

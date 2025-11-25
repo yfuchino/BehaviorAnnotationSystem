@@ -1,0 +1,56 @@
+# Operating System Files
+# ========================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+*.lnk
+$RECYCLE.BIN/
+ehthumbs.db
+
+# IDE / Editor Configuration
+# ===========================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+*.code-workspace
+
+# Build / Dependencies (Future-proofing)
+# ========================================
+
+node_modules/
+npm-debug.log
+yarn.lock
+
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Local Configuration
+# ====================
+
+*.local
+.env
+.env.local
+
+# Temporary / Backup Files
+# =========================
+
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
