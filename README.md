@@ -17,6 +17,7 @@
 - 行動定義（名前・キー・色）の追加・編集
 - 再生中のキー／ボタンで行動の Start/Stop を記録（区間データ）
 - タイムライン表示と区間の視覚化
+- 色付きの区間を選択し、削除ボタンまたは Delete キーで個別削除
 - 行動一覧のドラッグ＆ドロップ並べ替え
 - 状態（behaviors + intervals）の JSON 保存／読み込み
 - 行動テンプレート（behaviors のみ）の保存／読み込み
@@ -46,6 +47,7 @@ python -m http.server 8000
 | **動画を読み込む** | `動画ファイルを選択` ボタンをクリック → ローカル動画ファイルを選択 |
 | **行動を追加** | `行動名` と `キー`（1文字）を入力 → `追加` をクリック |
 | **記録を開始/終了** | 動画再生中に行動ボタンをクリック or 対応キーを押す（一時停止中は無効） |
+| **区間を選択／削除** | タイムライン上の色付き区間をクリックして選択し、削除ボタンまたは Delete キーで削除。選択中の区間を再クリック、またはタイムラインの空白をクリックすると選択解除（空白クリックでは再生位置も移動） |
 | **行動を編集** | 行動一覧の右端 `\|` ボタンをクリック → 名前・キー・色を変更 |
 | **行動を並べ替え** | 行動一覧の行をドラッグして上下に移動 |
 | **状態を保存** | `保存` ボタン → JSON ファイルをダウンロード（behaviors + intervals） |
@@ -131,6 +133,7 @@ The Behavior Annotation System (BAS) is a lightweight, single-file client-side w
 - Define/edit behaviors (name, key, color)
 - Record Start/Stop intervals while the video is playing (keyboard or button)
 - Timeline view with visualized intervals
+- Select a colored interval and delete it individually with the delete button or Delete key
 - Drag-and-drop ordering of behavior rows
 - Save/load full state (behaviors + intervals) as JSON
 - Save/load behavior templates (behaviors only) as JSON
@@ -159,6 +162,7 @@ Open `http://localhost:8000/bas.html` in your browser.
 | **Load a video** | Click `Load video` → Select a local video file |
 | **Add a behavior** | Enter `Behavior name` and `Key` (1 character) → Click `Add` |
 | **Record Start/Stop** | Click the behavior button or press the corresponding key while video is playing (paused video does not record) |
+| **Select/delete an interval** | Click a colored timeline interval to select it, then use the delete button or Delete key. Click the selected interval again or empty timeline space to clear the selection (empty-space clicks also seek) |
 | **Edit a behavior** | Click `\|` button on the behavior row → Edit name/key/color |
 | **Reorder behaviors** | Drag behavior rows up and down |
 | **Save state** | Click `Save` → Download JSON file (behaviors + intervals) |
@@ -206,6 +210,7 @@ Open `http://localhost:8000/bas.html` in your browser.
 - 行動定義（名前・キー・色）の追加・編集
 - 再生中のキー／ボタンで行動の Start/Stop を記録（区間データ）
 - タイムライン表示と区間の視覚化
+- 色付きの区間を選択し、削除ボタンまたは Delete キーで個別削除
 - 行動一覧のドラッグ＆ドロップ並べ替え
 - 状態（behaviors + intervals）の JSON 保存／読み込み
 - 行動テンプレート（behaviors のみ）の保存／読み込み
@@ -232,6 +237,7 @@ python -m http.server 8000
 - 動画ファイルを選択: `動画ファイルを選択` ボタンを押してローカル動画を読み込みます。
 - 行動を追加: `行動名` と `キー` を入力して `追加` を押すと行動が一覧に追加されます（キーは1文字）。
 - 記録開始/終了: 動画を再生中に該当の行動ボタンをクリック、または対応キーを押すと Start/Stop が記録されます（動画が一時停止中だと記録されません）。
+- 区間の削除: タイムライン上の色付き区間をクリックして選択し、削除ボタンまたは Delete キーで削除します。選択中の区間を再クリック、またはタイムラインの空白をクリックすると選択解除されます（空白クリックでは再生位置も移動します）。
 - 編集: 行動一覧の右端の `|` ボタンで名前／キー／色を編集できます。
 - 並べ替え: 行動一覧の各行をドラッグして上下に並べ替えられます。
 - 保存: 「保存」ボタンで JSON をダウンロードします。種類は「状態（behaviors + intervals）」「行動テンプレート（behaviorsのみ）」「タイムラインのみ」で分かれています。

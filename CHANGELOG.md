@@ -17,6 +17,7 @@
 - Separate JSON save/load for timeline-only data
 - Separate JSON save/load for behavior templates
 - CSV export with columns: behavior, key, start_sec, end_sec, duration_sec
+- Select timeline intervals and delete them individually with the delete button or Delete key; clear selection by clicking the selected interval again or empty timeline space
 
 ### Fixed
 - Same-file re-selection now triggers change event (input.value cleared after processing)
