@@ -118,6 +118,13 @@
             height: 100%;
             border-radius: 4px;
             opacity: 0.75;
+            cursor: pointer;
+        }
+
+        .timeline-interval.selected {
+            opacity: 1;
+            box-shadow: inset 0 0 0 2px #111;
+            z-index: 2;
         }
 
         .timeline-now {
@@ -259,6 +266,10 @@
         <div id="timelineContainer" style="margin-top:8px;">
             動画を読み込むと表示されます。
         </div>
+        <div class="controls">
+            <span id="selectedIntervalLabel" aria-live="polite">区間を選択してください。</span>
+            <button id="deleteSelectedIntervalBtn" type="button" disabled>選択した区間を削除</button>
+        </div>
 
         <div style="margin-top:16px;">
             <strong id="behaviorAddTitle">行動の追加 / Add Behaviors</strong>
@@ -389,6 +400,9 @@
                 behaviorNamePlaceholder: "行動名",
                 behaviorKeyPlaceholder: "キー",
                 btnAddBehavior: "追加",
+                btnDeleteInterval: "選択した区間を削除",
+                noIntervalSelected: "色付きの区間をクリックして選択。選択解除は同じ区間または空白をクリック。",
+                selectedInterval: "選択中: {name} ({start}〜{end})",
                 csvDownload: "CSV ダウンロード",
                 btnSaveState: "保存",
                 btnSaveBehaviors: "保存",
@@ -439,6 +453,9 @@
                 behaviorNamePlaceholder: "Behavior name",
                 behaviorKeyPlaceholder: "Key",
                 btnAddBehavior: "Add",
+                btnDeleteInterval: "Delete selected interval",
+                noIntervalSelected: "Click a colored interval to select it; click it again or empty space to clear.",
+                selectedInterval: "Selected: {name} ({start}–{end})",
                 csvDownload: "Download CSV",
                 btnSaveState: "Save",
                 btnSaveBehaviors: "Save",
@@ -499,6 +516,8 @@
             saveStateBtn.textContent = t("btnSaveState");
             saveBehaviorsBtn.textContent = t("btnSaveBehaviors");
             saveTimelineBtn.textContent = t("btnSaveTimeline");
+            deleteSelectedIntervalBtn.textContent = t("btnDeleteInterval");
+            updateSelectedIntervalControls();
 
             document.getElementById("editDialogTitle").textContent = t("editDialogTitle");
             document.getElementById("editNameLabel").textContent = t("editNameLabel");
@@ -548,6 +567,8 @@
         const speedLabel = document.getElementById("speedLabel");
 
         const timelineContainer = document.getElementById("timelineContainer");
+        const selectedIntervalLabel = document.getElementById("selectedIntervalLabel");
+        const deleteSelectedIntervalBtn = document.getElementById("deleteSelectedIntervalBtn");
         const behaviorNameInput = document.getElementById("behaviorName");
         const behaviorKeyInput = document.getElementById("behaviorKey");
         const addBehaviorBtn = document.getElementById("addBehaviorBtn");
@@ -577,6 +598,7 @@
         ============================ */
         let behaviors = []; // {name,key,color,openIntervalIndex}
         let intervals = []; // {key,behaviorName,start,end,duration,color}
+        let selectedInterval = null;
         const autoColors = ["#e53935", "#43a047", "#1e88e5", "#fb8c00", "#8e24aa", "#00897b", "#6d4c41", "#3949ab"];
         let colorIndex = 0;
         let currentVideoFileName = null;
@@ -598,6 +620,7 @@
             video.load();
 
             intervals = [];
+            selectedInterval = null;
             behaviors.forEach(b => b.openIntervalIndex = null);
             updateTimeline();
         });
@@ -673,6 +696,44 @@
             updateTimeline();
         }
 
+        function updateSelectedIntervalControls() {
+            deleteSelectedIntervalBtn.disabled = !selectedInterval || !intervals.includes(selectedInterval);
+            if (!selectedInterval || !intervals.includes(selectedInterval)) {
+                selectedIntervalLabel.textContent = t("noIntervalSelected");
+                return;
+            }
+            const behavior = behaviors.find(b => b.key === selectedInterval.key);
+            selectedIntervalLabel.textContent = t("selectedInterval")
+                .replace("{name}", behavior ? behavior.name : selectedInterval.behaviorName)
+                .replace("{start}", selectedInterval.start.toFixed(2))
+                .replace("{end}", selectedInterval.end.toFixed(2));
+        }
+
+        function clearSelectedInterval() {
+            if (!selectedInterval) return;
+            selectedInterval = null;
+            updateTimeline();
+        }
+
+        function deleteSelectedInterval() {
+            const intervalIndex = intervals.indexOf(selectedInterval);
+            if (intervalIndex < 0) return false;
+
+            intervals.splice(intervalIndex, 1);
+            behaviors.forEach(b => {
+                if (b.openIntervalIndex === intervalIndex) {
+                    b.openIntervalIndex = null;
+                } else if (b.openIntervalIndex > intervalIndex) {
+                    b.openIntervalIndex--;
+                }
+            });
+            selectedInterval = null;
+            updateTimeline();
+            return true;
+        }
+
+        deleteSelectedIntervalBtn.addEventListener("click", deleteSelectedInterval);
+
         /* ============================
            タイムライン描画＋D&D並べ替え
         ============================ */
@@ -680,9 +741,11 @@
             const d = video.duration;
             if (!isFinite(d) || d <= 0) {
                 timelineContainer.textContent = t("timelineEmpty");
+                updateSelectedIntervalControls();
                 return;
             }
             timelineContainer.innerHTML = "";
+            updateSelectedIntervalControls();
 
             behaviors.forEach((b, idx) => {
                 const row = document.createElement("div");
@@ -751,9 +814,11 @@
                 bar.addEventListener("click", e => {
                     const rect = bar.getBoundingClientRect();
                     const ratio = (e.clientX - rect.left) / rect.width;
+                    selectedInterval = null;
                     if (isFinite(video.duration) && video.duration > 0) {
                         video.currentTime = ratio * video.duration;
                     }
+                    updateTimeline();
                 });
 
                 const now = document.createElement("div");
@@ -768,6 +833,23 @@
                         seg.style.background = iv.color;
                         seg.style.left = `${iv.start / d * 100}%`;
                         seg.style.width = `${iv.duration / d * 100}%`;
+                        seg.setAttribute("role", "button");
+                        seg.tabIndex = 0;
+                        seg.setAttribute("aria-pressed", String(iv === selectedInterval));
+                        seg.setAttribute("aria-label", `${b.name}: ${iv.start.toFixed(2)}–${iv.end.toFixed(2)}`);
+                        if (iv === selectedInterval) seg.classList.add("selected");
+                        const selectInterval = e => {
+                            e.stopPropagation();
+                            selectedInterval = selectedInterval === iv ? null : iv;
+                            updateTimeline();
+                        };
+                        seg.addEventListener("click", selectInterval);
+                        seg.addEventListener("keydown", e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                selectInterval(e);
+                            }
+                        });
                         bar.appendChild(seg);
                     });
 
@@ -856,8 +938,12 @@
            キー入力で Start/Stop
         ============================ */
         document.addEventListener("keydown", e => {
-            const tag = e.target.tagName.toLowerCase();
-            if (tag === "input" || tag === "textarea") return;
+            const tag = e.target.tagName?.toLowerCase();
+            if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+            if (e.key === "Delete") {
+                if (deleteSelectedInterval()) e.preventDefault();
+                return;
+            }
             const key = e.key.toLowerCase();
             const idx = behaviors.findIndex(x => x.key === key);
             if (idx < 0) return;
@@ -916,6 +1002,7 @@
                     }
                     behaviors = obj.behaviors;
                     intervals = obj.intervals;
+                    selectedInterval = null;
                     behaviors.forEach(b => {
                         if (typeof b.openIntervalIndex !== "number") b.openIntervalIndex = null;
                     });
@@ -1022,6 +1109,7 @@
                         alert(t("msgTimelineFileUnsupported")); return;
                     }
                     intervals = obj.intervals;
+                    selectedInterval = null;
                     behaviors.forEach(b => b.openIntervalIndex = null);
 
                     const definedKeys = new Set(behaviors.map(b => b.key));
